@@ -185,6 +185,9 @@ class API
 	 */
     public function call($userData = array(), $verifyData = TRUE)
     {
+    	$_INFO = array();
+    	$_ERROR = array();
+
 	    if ($verifyData)
 	    {
 		    foreach (self::$_KEYS as $k)
@@ -204,7 +207,8 @@ class API
 	        'DATA'          => array(),
 	        'FAILONERROR'   => TRUE,
 	        'RETURNARRAY'   => FALSE,
-	        'ALLDATA'       => FALSE
+	        'ALLDATA'       => FALSE,
+	        'FAILWITHEXCEPTION' => TRUE
 	    );
 
 	    if ($verifyData)
@@ -216,7 +220,6 @@ class API
 		    $request = array_merge($defaults, $userData);
 	    }
 
-
 	    // Send & accept JSON data
 	    $defaultHeaders = array();
 	    $defaultHeaders[] = 'Content-Type: application/json; charset=' . $request['CHARSET'];
@@ -227,7 +230,6 @@ class API
 	    }
 
         $headers = array_merge($defaultHeaders, $request['HEADERS']);
-
 
 	    if ($verifyData)
 	    {
@@ -241,7 +243,7 @@ class API
 	    // cURL setup
         $ch = curl_init();
         $options = array(
-            CURLOPT_RETURNTRANSFER  => TRUE,
+            CURLOPT_RETURNTRANSFER  => FALSE,
             CURLOPT_URL             => $url,
             CURLOPT_HTTPHEADER      => $headers,
             CURLOPT_CUSTOMREQUEST   => strtoupper($request['METHOD']),
@@ -276,12 +278,23 @@ class API
 
         curl_setopt_array($ch, $options);
 
-        $response = curl_exec($ch);
-        $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+		ob_start();
+        curl_exec($ch);
+        $response = ob_get_clean();
 
+        $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 
         // Data returned
         $result = json_decode(substr($response, $headerSize), $request['RETURNARRAY']);
+
+        // A null object can be returned
+        if (!$request['RETURNARRAY'])
+        {
+			if (!is_object($result))
+			{
+				$result = new \stdClass();
+			}
+		}
 
         // Headers
         $info = array_filter(array_map('trim', explode("\n", substr($response, 0, $headerSize))));
@@ -298,38 +311,32 @@ class API
             $_INFO[trim($key)] = trim($val);
         }
 
-
         // cURL Errors
         $_ERROR = array('NUMBER' => curl_errno($ch), 'MESSAGE' => curl_error($ch));
 
         curl_close($ch);
 
-	    if ($_ERROR['NUMBER'])
-	    {
-		    throw new \Exception('ERROR #' . $_ERROR['NUMBER'] . ': ' . $_ERROR['MESSAGE']);
-	    }
-
-
-	    // Send back in format that user requested
-	    if ($request['ALLDATA'])
-	    {
-		    if ($request['RETURNARRAY'])
+        if ($request['FAILWITHEXCEPTION'])
+        {
+		    if ($_ERROR['NUMBER'])
 		    {
-			    $result['_ERROR'] = $_ERROR;
-			    $result['_INFO'] = $_INFO;
+			    throw new \Exception('ERROR #' . $_ERROR['NUMBER'] . ': ' . $_ERROR['MESSAGE']);
 		    }
-		    else
-		    {
-			    $result->_ERROR = $_ERROR;
-			    $result->_INFO = $_INFO;
-		    }
-		    return $result;
+        }
+
+	    if ($request['RETURNARRAY'])
+	    {
+		    $result['_ERROR'] = $_ERROR;
+		    $result['_INFO'] = $_INFO;
 	    }
 	    else
 	    {
-		    return $result;
+		    $result->_ERROR = $_ERROR;
+		    $result->_INFO = $_INFO;
 	    }
 
+	    // Send back in format that user requested
+	    return $result;
 
     }
 
