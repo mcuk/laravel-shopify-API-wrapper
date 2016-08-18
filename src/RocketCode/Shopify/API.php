@@ -311,8 +311,16 @@ class API
             $_INFO[trim($key)] = trim($val);
         }
 
-        // cURL Errors
-        $_ERROR = array('NUMBER' => curl_errno($ch), 'MESSAGE' => curl_error($ch));
+        if (isset($_INFO['HTTP_CODE']))
+        {
+        	preg_match('|HTTP/\d\.\d\s+(\d+)\s+(.*)|', $_INFO['HTTP_CODE'], $matches);
+        	$_ERROR = array('NUMBER' => $matches[1], 'MESSAGE' => $matches[2]);
+        }
+        else
+        {
+   	        // cURL Errors
+			$_ERROR = array('NUMBER' => curl_errno($ch), 'MESSAGE' => curl_error($ch));
+        }
 
         curl_close($ch);
 
