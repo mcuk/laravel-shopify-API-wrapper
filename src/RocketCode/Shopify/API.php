@@ -341,8 +341,8 @@ class API
         }
         else
         {
-            $result->_ERROR = $_ERROR;
-            $result->_INFO = $_INFO;
+            $result->_ERROR = (object) $_ERROR;
+            $result->_INFO = (object) $_INFO;
         }
 
         // Send back in format that user requested
